@@ -4,6 +4,7 @@ import os
 import gc
 from datetime import datetime
 
+
 class Call(pj.Call):
     """
     Call class, High level Python Call object, derived from pjsua2's Call object.
@@ -52,7 +53,27 @@ class Call(pj.Call):
                 self.wav_player = None
 
         if self.wav_player:
-           self.wav_player.startTransmit(aud_med)
+            self.wav_player.startTransmit(aud_med)
+
+
+class Account(pj.Account):
+    def __init__(self):
+        pj.Account.__init__(self)
+        self.calls = []
+
+    def onRegState(self, prm):
+        ai = self.getInfo()
+        print("***{}: code={}".format(("*** Register: code=" if ai.regIsActive else "*** Unregister"), prm.code))
+
+    def onIncomingCall(self, iprm):
+        call = Call(self, call_id=iprm.callId)
+        call_prm = pj.CallOpParam()
+        ci = call.getInfo()
+
+        print("*** Incoming Call: {} [{}]".format(ci.remoteUri, ci.stateText))
+        self.calls.append(call)
+        call_prm.statusCode = 200
+        call.answer(call_prm)
 
 
 def enumLocalMedia(ep):
@@ -65,9 +86,10 @@ def enumLocalMedia(ep):
         print("id: {}, name: {}, format(channelCount): {}".format(
             med_info.portId, med_info.name, med_info.format.channelCount))
 
+
 def sleep4PJSUA2(t):
     """sleep for a perid time, it takes care of pjsua2's threading
-    
+
     Args:
         t (int): The time(second) you wants to sleep.
     """
@@ -78,6 +100,7 @@ def sleep4PJSUA2(t):
         pj.Endpoint.instance().libHandleEvents(1000)
 
     return (end - start).total_seconds()
+
 
 def main():
     ep = None
@@ -103,7 +126,7 @@ def main():
         cred = pj.AuthCredInfo("digest", "*", "2", 0, "test")
         acc_cfg.sipConfig.authCreds.append(cred)
 
-        acc = pj.Account()
+        acc = Account()
         acc.create(acc_cfg)
 
         ep.libStart()
@@ -112,18 +135,11 @@ def main():
         # use null device as conference bridge, instead of local sound card
         pj.Endpoint.instance().audDevManager().setNullDev()
 
-        call = Call(acc)
-        prm = pj.CallOpParam(True)
-        prm.opt.audioCount=1
-        prm.opt.videoCount=0
-        call.makeCall("sip:1@kamailio", prm)
-
         # hangup all call after 10 sec
         cnt = sleep4PJSUA2(10)
         print("******************************** pooling {} sec".format(cnt))
 
         print("*** PJSUA2 SHUTTING DOWN ***")
-        del call
         del acc
 
     except Exception as e:

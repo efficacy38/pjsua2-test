@@ -23,6 +23,10 @@
 
 using namespace pj;
 
+class MyAccount;
+class MyCall;
+class MyEndpoint;
+
 class MyEndpoint : public Endpoint {
 public:
   MyEndpoint() : Endpoint(){};
@@ -35,8 +39,6 @@ public:
     return PJ_ENOTSUP;
   }
 };
-
-class MyAccount;
 
 class MyCall : public Call {
 private:
@@ -153,7 +155,7 @@ void MyCall::onCallMediaState(OnCallMediaStateParam &prm) {
     wav_player->startTransmit(aud_med);
 
   // And this will connect the call audio media to the sound device/speaker
-    //aud_med.startTransmit(play_dev_med);
+  // aud_med.startTransmit(play_dev_med);
 }
 
 extern "C" int main() {
@@ -182,8 +184,7 @@ extern "C" int main() {
     AuthCredInfo cred("digest", "*", "2", 0, "test");
     acc_cfg.sipConfig.authCreds.push_back(cred);
 
-     MyAccount *acc(new MyAccount);
-    // Account *acc(new Account);
+    MyAccount *acc(new MyAccount);
     acc->create(acc_cfg);
 
     // Start library
@@ -192,13 +193,6 @@ extern "C" int main() {
 
     // use null device as bridge
     Endpoint::instance().audDevManager().setNullDev();
-    // Make outgoing call
-    Call *call = new MyCall(*acc);
-    // acc->calls.push_back(call);
-    CallOpParam prm(true);
-    prm.opt.audioCount = 1;
-    prm.opt.videoCount = 0;
-    call->makeCall("sip:1@kamailio", prm);
 
     // Hangup all calls after 10 sec
     pj_thread_sleep(10000);
