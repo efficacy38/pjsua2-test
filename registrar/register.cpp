@@ -183,10 +183,6 @@ void MyCall::onCallReplaceRequest(OnCallReplaceRequestParam& prm)
     prm.newCall = new MyCall(*myAcc);
 }
 
-static void mainProg4(MyEndpoint& ep)
-{
-}
-
 extern "C" int main()
 {
     int ret = 0;
@@ -206,7 +202,14 @@ extern "C" int main()
 
         // Add account
         AccountConfig acc_cfg;
-        acc_cfg.idUri = "sip:localhost";
+        acc_cfg.idUri = "sip:2@localhost";
+        std::cout << "*** start sending SIP REGISTER ***";
+        acc_cfg.regConfig.registrarUri = "sip:kamailio";
+
+        // if there needed credential to login, just add following lines
+        // AuthCredInfo cred("digest", "*", "2", 0, "test");
+        // acc_cfg.sipConfig.authCreds.push_back(cred);
+
         MyAccount* acc(new MyAccount);
         acc->create(acc_cfg);
 
