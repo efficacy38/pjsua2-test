@@ -55,8 +55,6 @@ public:
   }
 
   virtual void onCallState(OnCallStateParam &prm);
-  virtual void onCallTransferRequest(OnCallTransferRequestParam &prm);
-  virtual void onCallReplaceRequest(OnCallReplaceRequestParam &prm);
   virtual void onCallMediaState(OnCallMediaStateParam &prm);
 };
 
@@ -127,8 +125,9 @@ void MyCall::onCallMediaState(OnCallMediaStateParam &prm) {
 
   CallInfo ci = getInfo();
   AudioMedia aud_med;
-  AudioMedia &play_dev_med =
-      MyEndpoint::instance().audDevManager().getPlaybackDevMedia();
+  // AudioMedia &play_dev_med =
+  //     MyEndpoint::instance().audDevManager().getPlaybackDevMedia();
+  Endpoint::instance().audDevManager().setNullDev();
 
   try {
     // Get the first audio media
@@ -154,17 +153,7 @@ void MyCall::onCallMediaState(OnCallMediaStateParam &prm) {
     wav_player->startTransmit(aud_med);
 
   // And this will connect the call audio media to the sound device/speaker
-  aud_med.startTransmit(play_dev_med);
-}
-
-void MyCall::onCallTransferRequest(OnCallTransferRequestParam &prm) {
-  /* Create new Call for call transfer */
-  prm.newCall = new MyCall(*myAcc);
-}
-
-void MyCall::onCallReplaceRequest(OnCallReplaceRequestParam &prm) {
-  /* Create new Call for call replace */
-  prm.newCall = new MyCall(*myAcc);
+    //aud_med.startTransmit(play_dev_med);
 }
 
 extern "C" int main() {
@@ -185,13 +174,13 @@ extern "C" int main() {
 
     // Add account
     AccountConfig acc_cfg;
-    acc_cfg.idUri = "sip:2@localhost";
+    acc_cfg.idUri = "sip:2@kamailio";
     std::cout << "*** start sending SIP REGISTER ***";
     acc_cfg.regConfig.registrarUri = "sip:kamailio";
 
-    // if there needed credential to login, just add following lines
-    // AuthCredInfo cred("digest", "*", "2", 0, "test");
-    // acc_cfg.sipConfig.authCreds.push_back(cred);
+    /* if there needed credential to login, just add following lines */
+    AuthCredInfo cred("digest", "*", "2", 0, "test");
+    acc_cfg.sipConfig.authCreds.push_back(cred);
 
     MyAccount *acc(new MyAccount);
     acc->create(acc_cfg);
@@ -209,7 +198,7 @@ extern "C" int main() {
     // call->makeCall("sip:1@kamailio", prm);
 
     // Hangup all calls after 10 sec
-    pj_thread_sleep(20000);
+    pj_thread_sleep(10000);
     ep.hangupAllCalls();
     pj_thread_sleep(4000);
 
