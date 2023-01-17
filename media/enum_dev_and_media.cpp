@@ -20,10 +20,13 @@ void enumMedia(Endpoint &ep){
 
     // important: the Endpoint::mediaEnumPorts2() and Call::getAudioMedia() only create a copy of device object
     // all memory should manage by developer
-    std::cout << "enum the devs, and length is " << aud_mgr->enumDev2().size() << std::endl;
+    std::cout << "enum the local media, and length is " << ep.mediaEnumPorts2().size() << std::endl;
     AudioMediaVector2 med_vec = ep.mediaEnumPorts2();
-    for (audo med : med_vec){
-        std::cout << dev.name << "  " << dev.driver << std::endl;
+    for (AudioMedia med : med_vec){
+        // media info ref: https://www.pjsip.org/pjsip/docs/html/structpj_1_1MediaFormatAudio.htm
+        ConfPortInfo med_info = med.getPortInfo();
+        std::cout << "id: " << med_info.portId << ",name: " << med_info.name << ", format(channelCount): "
+            << med_info.format.channelCount << std::endl;
     }
 }
 
@@ -46,4 +49,5 @@ int main(){
 
     enumDevs(ep);
     showPlaybackDev(ep);
+    enumMedia(ep);
 }

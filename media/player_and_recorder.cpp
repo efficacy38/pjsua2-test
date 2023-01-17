@@ -78,7 +78,7 @@ extern "C" int main() {
       amr.createRecorder("recorder_test_output.wav");
 
       // it would transmit a media source to a media sink
-      // the recorder_test_output would have the same media between 
+      // the recorder_test_output would have the same media between
       // `recorder_test_output.wav` and `input.16.wav`
       amp.startTransmit(amr);
       /* if (auddev2.isOpened()) */
