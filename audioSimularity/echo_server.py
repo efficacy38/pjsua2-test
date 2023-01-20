@@ -1,6 +1,5 @@
 import pjsua2 as pj
 from utils import sleep4PJSUA2
-import threading
 
 
 class Call(pj.Call):

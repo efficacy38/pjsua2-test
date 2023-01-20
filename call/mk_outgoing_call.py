@@ -1,8 +1,6 @@
 import pjsua2 as pj
-import time
-import os
-import gc
-from datetime import datetime
+from utils import sleep4PJSUA2
+
 
 class Call(pj.Call):
     """
@@ -52,7 +50,7 @@ class Call(pj.Call):
                 self.wav_player = None
 
         if self.wav_player:
-           self.wav_player.startTransmit(aud_med)
+            self.wav_player.startTransmit(aud_med)
 
 
 def enumLocalMedia(ep):
@@ -65,19 +63,6 @@ def enumLocalMedia(ep):
         print("id: {}, name: {}, format(channelCount): {}".format(
             med_info.portId, med_info.name, med_info.format.channelCount))
 
-def sleep4PJSUA2(t):
-    """sleep for a perid time, it takes care of pjsua2's threading
-    
-    Args:
-        t (int): The time(second) you wants to sleep.
-    """
-    start = datetime.now()
-    end = start
-    while (end - start).total_seconds() < t:
-        end = datetime.now()
-        pj.Endpoint.instance().libHandleEvents(1000)
-
-    return (end - start).total_seconds()
 
 def main():
     ep = None
@@ -90,17 +75,17 @@ def main():
 
         # add some config
         tcfg = pj.TransportConfig()
-        tcfg.port = 5060
+        # tcfg.port = 5060
         ep.transportCreate(pj.PJSIP_TRANSPORT_UDP, tcfg)
 
         # add account config
         acc_cfg = pj.AccountConfig()
-        acc_cfg.idUri = "sip:2@kamailio"
+        acc_cfg.idUri = "sip:1@kamailio"
         print("*** start sending SIP REGISTER ***")
         acc_cfg.regConfig.registrarUri = "sip:kamailio"
 
         # if there needed credential to login, just add following lines
-        cred = pj.AuthCredInfo("digest", "*", "2", 0, "test")
+        cred = pj.AuthCredInfo("digest", "*", "1", 0, "test")
         acc_cfg.sipConfig.authCreds.append(cred)
 
         acc = pj.Account()
@@ -114,13 +99,12 @@ def main():
 
         call = Call(acc)
         prm = pj.CallOpParam(True)
-        prm.opt.audioCount=1
-        prm.opt.videoCount=0
-        call.makeCall("sip:1@kamailio", prm)
+        prm.opt.audioCount = 1
+        prm.opt.videoCount = 0
+        call.makeCall("sip:2@kamailio", prm)
 
-        # hangup all call after 10 sec
-        cnt = sleep4PJSUA2(10)
-        print("******************************** pooling {} sec".format(cnt))
+        # hangup all call after 40 sec
+        cnt = sleep4PJSUA2(40)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del call

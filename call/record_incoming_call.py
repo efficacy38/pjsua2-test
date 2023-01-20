@@ -1,6 +1,5 @@
 import pjsua2 as pj
 from utils import sleep4PJSUA2
-import threading
 
 
 class Call(pj.Call):
@@ -13,6 +12,7 @@ class Call(pj.Call):
     def __init__(self, acc, peer_uri='', chat=None, call_id=pj.PJSUA_INVALID_ID):
         pj.Call.__init__(self, acc, call_id)
         self.acc = acc
+        self.wav_recorder = None
 
     # override the function at original parent class
     # parent class's function can be called by super().onCallState()
@@ -43,10 +43,20 @@ class Call(pj.Call):
         try:
             # get the "local" media
             aud_med = self.getAudioMedia(-1)
-            # generate echo
-            aud_med.startTransmit(aud_med)
         except Exception as e:
             print("exception!!: {}".format(e.args))
+
+        if not self.wav_recorder:
+            self.wav_recorder = pj.AudioMediaRecorder()
+            try:
+                self.wav_recorder.createRecorder("./recording.wav")
+            except Exception as e:
+                print("Exception!!: failed opening wav file")
+                del self.wav_recorder
+                self.wav_recorder = None
+
+        if self.wav_recorder:
+            aud_med.startTransmit(self.wav_recorder)
 
 
 class Account(pj.Account):
@@ -93,10 +103,6 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
-
-        # disable the echo cancelation
-        # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
-
         ep.libInit(ep_cfg)
 
         # add some config
@@ -124,7 +130,7 @@ def main():
         pj.Endpoint.instance().audDevManager().setNullDev()
 
         # hangup all call after 10 sec
-        cnt = sleep4PJSUA2(-1)
+        sleep4PJSUA2(-1)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del acc

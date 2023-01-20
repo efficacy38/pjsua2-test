@@ -1,6 +1,5 @@
 import pjsua2 as pj
 from utils import sleep4PJSUA2
-import threading
 
 
 class Call(pj.Call):
@@ -13,18 +12,14 @@ class Call(pj.Call):
     def __init__(self, acc, peer_uri='', chat=None, call_id=pj.PJSUA_INVALID_ID):
         pj.Call.__init__(self, acc, call_id)
         self.acc = acc
+        self.wav_player = None
+        self.wav_recorder = None
 
     # override the function at original parent class
     # parent class's function can be called by super().onCallState()
     def onCallState(self, prm):
         ci = self.getInfo()
-        print("*** Call: {} [{}, {}]".format(ci.remoteUri,
-              ci.lastStatusCode, ci.stateText))
-
-        # python do not do the gc of underlaying C++ library, we need to do it by ourself
-        if ci.stateText == "DISCONNCTD":
-            self.acc.removeCall(self)
-            del self
+        print("*** Call: {} [{}]".format(ci.remoteUri, ci.lastStatusCode))
 
     def onCallMediaState(self, prm):
         # Deprecated: for PJSIP version 2.8 or earlier
@@ -43,36 +38,31 @@ class Call(pj.Call):
         try:
             # get the "local" media
             aud_med = self.getAudioMedia(-1)
-            # generate echo
-            aud_med.startTransmit(aud_med)
         except Exception as e:
             print("exception!!: {}".format(e.args))
 
+        if not self.wav_player:
+            self.wav_player = pj.AudioMediaPlayer()
+        if not self.wav_recorder:
+            self.wav_recorder = pj.AudioMediaRecorder()
 
-class Account(pj.Account):
-    def __init__(self):
-        pj.Account.__init__(self)
-        self.calls = []
+        try:
+            self.wav_player.createPlayer("./input.16.wav")
+        except Exception as e:
+            print("Exception!!: failed opening wav file")
+            del self.wav_player
+            self.wav_player = None
 
-    def onRegState(self, prm):
-        ai = self.getInfo()
-        print("***{}: code={}".format(("*** Register: code=" if ai.regIsActive else "*** Unregister"), prm.code))
+        try:
+            self.wav_recorder.createRecorder("./recordered.wav")
+        except Exception as e:
+            print("Exception!!: failed opening recordered wav file")
+            del self.wav_recorder
+            self.wav_recorder = None
 
-    def onIncomingCall(self, iprm):
-        call = Call(self, call_id=iprm.callId)
-        call_prm = pj.CallOpParam()
-        ci = call.getInfo()
-
-        print("*** Incoming Call: {} [{}]".format(ci.remoteUri, ci.stateText))
-        self.calls.append(call)
-        call_prm.statusCode = 200
-        call.answer(call_prm)
-
-    def removeCall(self, call):
-        for tmpCall in self.calls:
-            if tmpCall.getInfo().callIdString == call.getInfo().callIdString:
-                self.calls.remove(tmpCall)
-                break
+        if self.wav_player and self.wav_recorder:
+            self.wav_player.startTransmit(aud_med)
+            aud_med.startTransmit(self.wav_recorder)
 
 
 def enumLocalMedia(ep):
@@ -93,28 +83,24 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
-
-        # disable the echo cancelation
-        # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
-
         ep.libInit(ep_cfg)
 
         # add some config
         tcfg = pj.TransportConfig()
-        tcfg.port = 5060
+        # tcfg.port = 5060
         ep.transportCreate(pj.PJSIP_TRANSPORT_UDP, tcfg)
 
         # add account config
         acc_cfg = pj.AccountConfig()
-        acc_cfg.idUri = "sip:2@kamailio"
+        acc_cfg.idUri = "sip:1@kamailio"
         print("*** start sending SIP REGISTER ***")
         acc_cfg.regConfig.registrarUri = "sip:kamailio"
 
         # if there needed credential to login, just add following lines
-        cred = pj.AuthCredInfo("digest", "*", "2", 0, "test")
+        cred = pj.AuthCredInfo("digest", "*", "1", 0, "test")
         acc_cfg.sipConfig.authCreds.append(cred)
 
-        acc = Account()
+        acc = pj.Account()
         acc.create(acc_cfg)
 
         ep.libStart()
@@ -123,10 +109,17 @@ def main():
         # use null device as conference bridge, instead of local sound card
         pj.Endpoint.instance().audDevManager().setNullDev()
 
+        call = Call(acc)
+        prm = pj.CallOpParam(True)
+        prm.opt.audioCount = 1
+        prm.opt.videoCount = 0
+        call.makeCall("sip:2@kamailio", prm)
+
         # hangup all call after 10 sec
-        cnt = sleep4PJSUA2(-1)
+        sleep4PJSUA2(20)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
+        del call
         del acc
 
     except Exception as e:

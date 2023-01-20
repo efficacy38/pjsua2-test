@@ -1,8 +1,5 @@
 import pjsua2 as pj
-import time
-import os
-import gc
-from datetime import datetime
+from utils import sleep4PJSUA2
 
 
 class Call(pj.Call):
@@ -21,7 +18,13 @@ class Call(pj.Call):
     # parent class's function can be called by super().onCallState()
     def onCallState(self, prm):
         ci = self.getInfo()
-        print("*** Call: {} [{}]".format(ci.remoteUri, ci.lastStatusCode))
+        print("*** Call: {} [{}, {}]".format(ci.remoteUri,
+              ci.lastStatusCode, ci.stateText))
+
+        # python do not do the gc of underlaying C++ library, we need to do it by ourself
+        if ci.stateText == "DISCONNCTD":
+            self.acc.removeCall(self)
+            del self
 
     def onCallMediaState(self, prm):
         # Deprecated: for PJSIP version 2.8 or earlier
@@ -75,6 +78,12 @@ class Account(pj.Account):
         call_prm.statusCode = 200
         call.answer(call_prm)
 
+    def removeCall(self, call):
+        for tmpCall in self.calls:
+            if tmpCall.getInfo().callIdString == call.getInfo().callIdString:
+                self.calls.remove(tmpCall)
+                break
+
 
 def enumLocalMedia(ep):
     # important: the Endpoint::mediaEnumPorts2() and Call::getAudioMedia() only create a copy of device object
@@ -85,21 +94,6 @@ def enumLocalMedia(ep):
         med_info = med.getPortInfo()
         print("id: {}, name: {}, format(channelCount): {}".format(
             med_info.portId, med_info.name, med_info.format.channelCount))
-
-
-def sleep4PJSUA2(t):
-    """sleep for a perid time, it takes care of pjsua2's threading
-
-    Args:
-        t (int): The time(second) you wants to sleep.
-    """
-    start = datetime.now()
-    end = start
-    while (end - start).total_seconds() < t:
-        end = datetime.now()
-        pj.Endpoint.instance().libHandleEvents(1000)
-
-    return (end - start).total_seconds()
 
 
 def main():
@@ -136,8 +130,7 @@ def main():
         pj.Endpoint.instance().audDevManager().setNullDev()
 
         # hangup all call after 10 sec
-        cnt = sleep4PJSUA2(10)
-        print("******************************** pooling {} sec".format(cnt))
+        sleep4PJSUA2(-1)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del acc
