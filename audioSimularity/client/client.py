@@ -1,20 +1,28 @@
+import sys
+import re
 import pjsua2 as pj
 from utils import sleep4PJSUA2
 from parseLog import PjsuaLogParser
+import argparse
+from envDefault import EnvDefault
+
 
 class Unbuffered(object):
-   def __init__(self, stream):
-       self.stream = stream
-   def write(self, data):
-       self.stream.write(data)
-       self.stream.flush()
-   def writelines(self, datas):
-       self.stream.writelines(datas)
-       self.stream.flush()
-   def __getattr__(self, attr):
-       return getattr(self.stream, attr)
+    def __init__(self, stream):
+        self.stream = stream
 
-import sys
+    def write(self, data):
+        self.stream.write(data)
+        self.stream.flush()
+
+    def writelines(self, datas):
+        self.stream.writelines(datas)
+        self.stream.flush()
+
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
+
 sys.stdout = Unbuffered(sys.stdout)
 
 
@@ -93,16 +101,36 @@ def enumLocalMedia(ep):
 
 
 def main():
+
+    # parse the cmd element
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-u", "--username", action=EnvDefault, envvar='USERNAME',
+        help="Specify the username, example: `-u 1000` (can also be specified using USERNAME environment variable)")
+    parser.add_argument(
+        "-p", "--password", action=EnvDefault, envvar='PASSWORD',
+        help="Specify the password (can also be specified using PASSWORD environment variable)")
+    parser.add_argument(
+        "-R", "--registrarURI", action=EnvDefault, envvar='REGISTER_URI',
+        help="Specify the registrarURI, example: `-R sip:kamailio` (can also be specified using REGISTER_URI environment variable)")
+    parser.add_argument(
+        "-c", "--callURI", action=EnvDefault, envvar='CALL_URI',
+        help="Specify the URI you wants to call, example: `-c sip:1@kamailio` (can also be specified using CALL_URI environment variable)")
+    parser.add_argument(
+        "-t", "--callTime", action=EnvDefault, envvar='CALL_TIME', type=int,
+        help="Specify the time(second) you wants to call (can also be specified using CALL_TIME environment variable)")
+
+    args = parser.parse_args()
+
     ep = None
     try:
         # init the lib
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
-        ep_cfg.logConfig.level = 1;
-        ep_cfg.logConfig.consoleLevel = 1;
+        ep_cfg.logConfig.level = 1
+        ep_cfg.logConfig.consoleLevel = 1
         ep.libInit(ep_cfg)
-
 
         # add some config
         tcfg = pj.TransportConfig()
@@ -111,12 +139,12 @@ def main():
 
         # add account config
         acc_cfg = pj.AccountConfig()
-        acc_cfg.idUri = "sip:1@kamailio"
+        acc_cfg.idUri = "sip:{}@{}".format(args.username, re.findall("sip:(.*)", args.registrarURI)[0])
         print("*** start sending SIP REGISTER ***")
-        acc_cfg.regConfig.registrarUri = "sip:kamailio"
+        acc_cfg.regConfig.registrarUri = args.registrarURI
 
         # if there needed credential to login, just add following lines
-        cred = pj.AuthCredInfo("digest", "*", "1", 0, "test")
+        cred = pj.AuthCredInfo("digest", "*", args.username, 0, args.password)
         acc_cfg.sipConfig.authCreds.append(cred)
 
         acc = pj.Account()
@@ -132,10 +160,10 @@ def main():
         prm = pj.CallOpParam(True)
         prm.opt.audioCount = 1
         prm.opt.videoCount = 0
-        call.makeCall("sip:2@kamailio", prm)
+        call.makeCall(args.callURI, prm)
 
         # hangup all call after 40 sec
-        sleep4PJSUA2(10)
+        sleep4PJSUA2(args.callTime)
         parser = PjsuaLogParser()
         parser.parseIndent(call.dump(True, "    "))
         print(call.dump(True, "    "))
