@@ -1,5 +1,21 @@
 import pjsua2 as pj
 from utils import sleep4PJSUA2
+from parseLog import PjsuaLogParser
+
+class Unbuffered(object):
+   def __init__(self, stream):
+       self.stream = stream
+   def write(self, data):
+       self.stream.write(data)
+       self.stream.flush()
+   def writelines(self, datas):
+       self.stream.writelines(datas)
+       self.stream.flush()
+   def __getattr__(self, attr):
+       return getattr(self.stream, attr)
+
+import sys
+sys.stdout = Unbuffered(sys.stdout)
 
 
 class Call(pj.Call):
@@ -49,7 +65,7 @@ class Call(pj.Call):
         try:
             self.wav_player.createPlayer("./input.16.wav")
         except Exception as e:
-            print("Exception!!: failed opening wav file")
+            print("Exception!!: failed opening wav file {}".format(e.args))
             del self.wav_player
             self.wav_player = None
 
@@ -83,7 +99,10 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
+        ep_cfg.logConfig.level = 1;
+        ep_cfg.logConfig.consoleLevel = 1;
         ep.libInit(ep_cfg)
+
 
         # add some config
         tcfg = pj.TransportConfig()
@@ -115,8 +134,12 @@ def main():
         prm.opt.videoCount = 0
         call.makeCall("sip:2@kamailio", prm)
 
-        # hangup all call after 10 sec
-        sleep4PJSUA2(20)
+        # hangup all call after 40 sec
+        sleep4PJSUA2(10)
+        parser = PjsuaLogParser()
+        parser.parseIndent(call.dump(True, "    "))
+        print(call.dump(True, "    "))
+        print(parser.toJSON())
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del call

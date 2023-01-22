@@ -1,5 +1,6 @@
 import pjsua2 as pj
 from utils import sleep4PJSUA2
+from parseLog import PjsuaLogParser
 
 
 class Call(pj.Call):
@@ -22,6 +23,9 @@ class Call(pj.Call):
 
         # python do not do the gc of underlaying C++ library, we need to do it by ourself
         if ci.stateText == "DISCONNCTD":
+            # parser = PjsuaLogParser()
+            # parser.parseIndent(self.dump(True, "    "))
+            # print(parser.toJSON())
             self.acc.removeCall(self)
             del self
 
@@ -92,6 +96,8 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
+        ep_cfg.logConfig.level = 1
+        ep_cfg.logConfig.consoleLevel = 1
 
         # disable the echo cancelation
         # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
