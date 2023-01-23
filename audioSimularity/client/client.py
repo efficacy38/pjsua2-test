@@ -6,6 +6,8 @@ from parseLog import PjsuaLogParser
 import argparse
 from envDefault import EnvDefault
 
+# DBG=True
+DBG=False
 
 class Unbuffered(object):
     def __init__(self, stream):
@@ -128,8 +130,9 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
-        ep_cfg.logConfig.level = 1
-        ep_cfg.logConfig.consoleLevel = 1
+        if not DBG:
+            ep_cfg.logConfig.level = 1
+            ep_cfg.logConfig.consoleLevel = 1
         ep.libInit(ep_cfg)
 
         # add some config

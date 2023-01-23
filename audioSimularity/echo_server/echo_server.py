@@ -1,6 +1,9 @@
 import pjsua2 as pj
 from utils import sleep4PJSUA2
 from parseLog import PjsuaLogParser
+import argparse
+from envDefault import EnvDefault
+import re
 
 
 class Call(pj.Call):
@@ -90,6 +93,20 @@ def enumLocalMedia(ep):
 
 
 def main():
+    # parse the cmd element
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-u", "--username", action=EnvDefault, envvar='USERNAME',
+        help="Specify the username, example: `-u 1000` (can also be specified using USERNAME environment variable)")
+    parser.add_argument(
+        "-p", "--password", action=EnvDefault, envvar='PASSWORD',
+        help="Specify the password (can also be specified using PASSWORD environment variable)")
+    parser.add_argument(
+        "-R", "--registrarURI", action=EnvDefault, envvar='REGISTER_URI',
+        help="Specify the registrarURI, example: `-R sip:kamailio` (can also be specified using REGISTER_URI environment variable)")
+
+    args = parser.parse_args()
+
     ep = None
     try:
         # init the lib
@@ -111,12 +128,13 @@ def main():
 
         # add account config
         acc_cfg = pj.AccountConfig()
-        acc_cfg.idUri = "sip:2@kamailio"
+        acc_cfg.idUri = "sip:{}@{}".format(args.username, re.findall("sip:(.*)", args.registrarURI)[0])
         print("*** start sending SIP REGISTER ***")
-        acc_cfg.regConfig.registrarUri = "sip:kamailio"
+        acc_cfg.regConfig.registrarUri = args.registrarURI
 
         # if there needed credential to login, just add following lines
-        cred = pj.AuthCredInfo("digest", "*", "2", 0, "test")
+        cred = pj.AuthCredInfo("digest", "*", args.username, 0, args.password)
+        print(args.username, args.password)
         acc_cfg.sipConfig.authCreds.append(cred)
 
         acc = Account()
