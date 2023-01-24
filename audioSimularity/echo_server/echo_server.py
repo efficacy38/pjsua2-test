@@ -62,7 +62,7 @@ class Account(pj.Account):
 
     def onRegState(self, prm):
         ai = self.getInfo()
-        print("***{}: code={}".format(("*** Register: " if ai.regIsActive else "*** Unregister"), prm.code))
+        print("***{}: code={}".format(("*** Register" if ai.regIsActive else "*** Unregister"), prm.code))
 
     def onIncomingCall(self, iprm):
         call = Call(self, call_id=iprm.callId)
