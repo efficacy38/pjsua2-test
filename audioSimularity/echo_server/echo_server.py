@@ -62,7 +62,7 @@ class Account(pj.Account):
 
     def onRegState(self, prm):
         ai = self.getInfo()
-        print("***{}: code={}".format(("*** Register: code=" if ai.regIsActive else "*** Unregister"), prm.code))
+        print("***{}: code={}".format(("*** Register: " if ai.regIsActive else "*** Unregister"), prm.code))
 
     def onIncomingCall(self, iprm):
         call = Call(self, call_id=iprm.callId)
@@ -134,7 +134,6 @@ def main():
 
         # if there needed credential to login, just add following lines
         cred = pj.AuthCredInfo("digest", "*", args.username, 0, args.password)
-        print(args.username, args.password)
         acc_cfg.sipConfig.authCreds.append(cred)
 
         acc = Account()

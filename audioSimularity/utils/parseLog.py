@@ -7,15 +7,17 @@ DBG = 0
 
 
 class PjsuaNetMatrics:
-    def __init__(self, name, min, avg, max):
+    def __init__(self, name, pkt_loss_min, pkt_loss_avg, pkt_loss_max, total_packet_cnt, total_packet_size):
         self.type = name
-        self.min = min
-        self.avg = avg
-        self.max = max
+        self.pkt_loss_min = pkt_loss_min
+        self.pkt_loss_avg = pkt_loss_avg
+        self.pkt_loss_max = pkt_loss_max
+        self.total_packet_cnt = total_packet_cnt
+        self.total_packet_size = total_packet_size
 
 
 class PjsuaMediaMatrics:
-    def __init__(self, id, media_type, codec, sample_rate, peer_ip, rx, tx):
+    def __init__(self, id: int, media_type: str, codec: str, sample_rate: str, peer_ip: str, rx: PjsuaNetMatrics, tx: PjsuaNetMatrics):
         self.id = id
         self.media_type = media_type
         self.codec = codec
@@ -26,7 +28,8 @@ class PjsuaMediaMatrics:
 
 
 class PjsuaLogParser:
-    def __init__(self):
+    def __init__(self, call_id):
+        self.call_id = call_id
         self.call_status = None
         self.media = {}
         self.dst_URI = None
@@ -59,7 +62,7 @@ class PjsuaLogParser:
             call_time_match = re.match(
                 r"Call time: (\d{2}h:\d{2}m:\d{2}s), \d+st res in \d+ ms, conn in \d+ms", data[i])
             media_match = re.match(
-                r"#(\d+) (\w+) (\w+) @(\w+), (\w+), peer=([\w\d\.:]+)", data[i])
+                r"#(\d+) (\w+) (\w+) @(\w+), (\w+), peer=([\w\d\.:-]+)", data[i])
 
             if call_time_match:
                 self.call_time = call_time_match.groups()[0]
@@ -74,18 +77,26 @@ class PjsuaLogParser:
                 tx_data = data[i][4]
 
                 rx_loss_match = re.match(
-                    r"loss period:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", rx_data[3])
+                    r"loss period:\s+([\d.]+)\s+([\d.]+)\s+([\d\.]+)", rx_data[3])
                 tx_loss_match = re.match(
-                    r"loss period:\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)", tx_data[3])
+                    r"loss period:\s+([\d.]+)\s+([\d.]+)\s+([\d\.]+)", tx_data[3])
+
+                # print(rx_data[0])
+                # print(re.findall(r"total (\d+)pkt [\d\.]*.{0,1}B \(([\d\.^\ ]+).{0,1}B", rx_data[0])[0])
+                try:
+                    rx_packets_cnt, rx_packets_size = re.findall(r"total (\d+)pkt [\d\.]*.{0,1}B \(([\d\.^\ ]+.{0,1}B)", rx_data[0])[0]
+                    tx_packets_cnt, tx_packets_size = re.findall(r"total (\d+)pkt [\d\.]*.{0,1}B \(([\d\.^\ ]+.{0,1}B)", tx_data[0])[0]
+                except Exception as e:
+                    print(e.args)
+
 
                 rx = PjsuaNetMatrics(
-                    "rx packet loss period", *rx_loss_match.groups())
+                    "rx packet loss period", *rx_loss_match.groups(), rx_packets_cnt, rx_packets_size)
                 tx = PjsuaNetMatrics(
-                    "tx packet loss period", *tx_loss_match.groups())
+                    "tx packet loss period", *tx_loss_match.groups(), tx_packets_cnt, tx_packets_size)
 
                 self.media[media_id] = PjsuaMediaMatrics(
                     media_id, media_type, codec, sample_rate, peer_ip, rx, tx)
-
             i += 1
 
     def parseIndent(self, lines):
@@ -100,7 +111,7 @@ class PjsuaLogParser:
             line = line.rstrip()
 
             # remove indent
-            content = line.strip()
+            content = line.lstrip()
             # ignore the empty line
             if len(content) == 0:
                 continue
@@ -138,12 +149,13 @@ class PjsuaLogParser:
 
 
 if __name__ == '__main__':
-    FILE = './test.log'
+    FILE = './test1.log'
     f = open(FILE, 'r')
 
     pp = pprint.PrettyPrinter(indent=4)
-    parser = PjsuaLogParser()
-    parser.parseIndent(f.readlines())
+    parser = PjsuaLogParser("fake-call-id")
+
+    (parser.parseIndent(f.readlines()))
 
     pp.pprint(parser.toJSON())
     # print(parser.toJSON())

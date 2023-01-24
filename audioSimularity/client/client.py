@@ -5,9 +5,10 @@ from utils import sleep4PJSUA2
 from parseLog import PjsuaLogParser
 import argparse
 from envDefault import EnvDefault
+import humanfriendly
 
-# DBG=True
-DBG=False
+DBG = 0
+
 
 class Unbuffered(object):
     def __init__(self, stream):
@@ -69,22 +70,21 @@ class Call(pj.Call):
 
         if not self.wav_player:
             self.wav_player = pj.AudioMediaPlayer()
+            try:
+                self.wav_player.createPlayer("./input.16.wav")
+            except Exception as e:
+                print("Exception!!: failed opening wav file {}".format(e.args))
+                del self.wav_player
+                self.wav_player = None
+
         if not self.wav_recorder:
             self.wav_recorder = pj.AudioMediaRecorder()
-
-        try:
-            self.wav_player.createPlayer("./input.16.wav")
-        except Exception as e:
-            print("Exception!!: failed opening wav file {}".format(e.args))
-            del self.wav_player
-            self.wav_player = None
-
-        try:
-            self.wav_recorder.createRecorder("./recordered.wav")
-        except Exception as e:
-            print("Exception!!: failed opening recordered wav file")
-            del self.wav_recorder
-            self.wav_recorder = None
+            try:
+                self.wav_recorder.createRecorder("./recordered.wav")
+            except Exception as e:
+                print("Exception!!: failed opening recordered wav file")
+                del self.wav_recorder
+                self.wav_recorder = None
 
         if self.wav_player and self.wav_recorder:
             self.wav_player.startTransmit(aud_med)
@@ -121,63 +121,88 @@ def main():
     parser.add_argument(
         "-t", "--callTime", action=EnvDefault, envvar='CALL_TIME', type=int,
         help="Specify the time(second) you wants to call (can also be specified using CALL_TIME environment variable)")
+    parser.add_argument(
+        "-s", "--threshold", action=EnvDefault, envvar='THRESHOLD', type=float, default=0.9,
+        help="Specify the abnormal percent it would assert (can also be specified using THRESHOLD environment variable)")
 
     args = parser.parse_args()
 
     ep = None
-    try:
-        # init the lib
-        ep = pj.Endpoint()
-        ep.libCreate()
-        ep_cfg = pj.EpConfig()
-        if not DBG:
-            ep_cfg.logConfig.level = 1
-            ep_cfg.logConfig.consoleLevel = 1
-        ep.libInit(ep_cfg)
+    # try:
+    # init the lib
+    ep = pj.Endpoint()
+    ep.libCreate()
+    ep_cfg = pj.EpConfig()
+    if not DBG:
+        ep_cfg.logConfig.level = 1
+        ep_cfg.logConfig.consoleLevel = 1
+    ep.libInit(ep_cfg)
 
-        # add some config
-        tcfg = pj.TransportConfig()
-        # tcfg.port = 5060
-        ep.transportCreate(pj.PJSIP_TRANSPORT_UDP, tcfg)
+    # add some config
+    tcfg = pj.TransportConfig()
+    # tcfg.port = 5060
+    ep.transportCreate(pj.PJSIP_TRANSPORT_UDP, tcfg)
 
-        # add account config
-        acc_cfg = pj.AccountConfig()
-        acc_cfg.idUri = "sip:{}@{}".format(args.username, re.findall("sip:(.*)", args.registrarURI)[0])
-        print("*** start sending SIP REGISTER ***")
-        acc_cfg.regConfig.registrarUri = args.registrarURI
+    # add account config
+    acc_cfg = pj.AccountConfig()
+    acc_cfg.idUri = "sip:{}@{}".format(args.username,
+                                       re.findall("sip:(.*)", args.registrarURI)[0])
+    print("*** start sending SIP REGISTER ***")
+    acc_cfg.regConfig.registrarUri = args.registrarURI
 
-        # if there needed credential to login, just add following lines
-        cred = pj.AuthCredInfo("digest", "*", args.username, 0, args.password)
-        acc_cfg.sipConfig.authCreds.append(cred)
+    # if there needed credential to login, just add following lines
+    cred = pj.AuthCredInfo("digest", "*", args.username, 0, args.password)
+    acc_cfg.sipConfig.authCreds.append(cred)
 
-        acc = pj.Account()
-        acc.create(acc_cfg)
+    acc = pj.Account()
+    acc.create(acc_cfg)
 
-        ep.libStart()
-        print("*** PJSUA2 STARTED ***")
+    ep.libStart()
+    print("*** PJSUA2 STARTED ***")
 
-        # use null device as conference bridge, instead of local sound card
-        pj.Endpoint.instance().audDevManager().setNullDev()
+    # use null device as conference bridge, instead of local sound card
+    pj.Endpoint.instance().audDevManager().setNullDev()
 
-        call = Call(acc)
-        prm = pj.CallOpParam(True)
-        prm.opt.audioCount = 1
-        prm.opt.videoCount = 0
-        call.makeCall(args.callURI, prm)
+    call = Call(acc)
+    prm = pj.CallOpParam(True)
+    prm.opt.audioCount = 1
+    prm.opt.videoCount = 0
+    call.makeCall(args.callURI, prm)
 
-        # hangup all call after 40 sec
-        sleep4PJSUA2(args.callTime)
-        parser = PjsuaLogParser()
-        parser.parseIndent(call.dump(True, "    "))
-        print(call.dump(True, "    "))
-        print(parser.toJSON())
+    # hangup all call after 40 sec
+    sleep4PJSUA2(args.callTime)
+    sleep4PJSUA2(1)
+    parser = PjsuaLogParser(call.getInfo().callIdString)
+    dumps = parser.parseIndent(call.dump(True, "    "))
+    # print(dumps)
+    print(call.dump(True, "    "))
+    stats = parser.toJSON()
 
-        print("*** PJSUA2 SHUTTING DOWN ***")
-        del call
-        del acc
+    # flag the abnormal data
+    is_abnormal = False
+    min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+        stats["media"]["0"]["tx"]["total_packet_cnt"]))
+    max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+        stats["media"]["0"]["tx"]["total_packet_cnt"]))
 
-    except Exception as e:
-        print("catch exception!!, exception error is: {}".format(e.args))
+    if min_pktsz / max_pktsz < args.threshold:
+        is_abnormal = True
+
+    with open('client.log', "a") as f:
+        log_str = ""
+        if is_abnormal:
+            log_str = "Error callid:{} min_pktsz:{} max_pktsz:{}\n".format(stats["call_id"], min_pktsz, max_pktsz)
+        else:
+            log_str = "Normal callid:{} min_pktsz:{} max_pktsz:{}\n".format(stats["call_id"], min_pktsz, max_pktsz)
+        print(log_str)
+        f.write(log_str)
+
+    print("*** PJSUA2 SHUTTING DOWN ***")
+    del call
+    del acc
+
+    # except Exception as e:
+    #     print("catch exception!!, exception error is: {}".format(e.args))
 
     # close the library
     try:
