@@ -83,9 +83,10 @@ class PjsuaLogParser:
 
                 # print(rx_data[0])
                 # print(re.findall(r"total (\d+)pkt [\d\.]*.{0,1}B \(([\d\.^\ ]+).{0,1}B", rx_data[0])[0])
+                rx_packets_cnt = rx_packets_size = tx_packets_cnt = tx_packets_size ="0kB" 
                 try:
-                    rx_packets_cnt, rx_packets_size = re.findall(r"total (\d+)pkt [\d\.]*.{0,1}B \(([\d\.^\ ]+.{0,1}B)", rx_data[0])[0]
-                    tx_packets_cnt, tx_packets_size = re.findall(r"total (\d+)pkt [\d\.]*.{0,1}B \(([\d\.^\ ]+.{0,1}B)", tx_data[0])[0]
+                    rx_packets_cnt, rx_packets_size = re.findall(r"total ([\d\.]+\w{0,1})pkt [\d\.]*\w{0,1}B \(([\d\.^\ ]+\w{0,1}B)", rx_data[0])[0]
+                    tx_packets_cnt, tx_packets_size = re.findall(r"total ([\d\.]+\w{0,1})pkt [\d\.]*\w{0,1}B \(([\d\.^\ ]+\w{0,1}B)", tx_data[0])[0]
                 except Exception as e:
                     print(e.args)
 
@@ -149,7 +150,7 @@ class PjsuaLogParser:
 
 
 if __name__ == '__main__':
-    FILE = './test1.log'
+    FILE = './test3.log'
     f = open(FILE, 'r')
 
     pp = pprint.PrettyPrinter(indent=4)
