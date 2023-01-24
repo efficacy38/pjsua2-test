@@ -6,6 +6,7 @@ from parseLog import PjsuaLogParser
 import argparse
 from envDefault import EnvDefault
 import humanfriendly
+from datetime import datetime
 
 DBG = 0
 
@@ -123,7 +124,10 @@ def main():
         help="Specify the time(second) you wants to call (can also be specified using CALL_TIME environment variable)")
     parser.add_argument(
         "-s", "--threshold", action=EnvDefault, envvar='THRESHOLD', type=float, default=0.9,
-        help="Specify the abnormal percent it would assert (can also be specified using THRESHOLD environment variable)")
+        help="Specify the abnormal percent it would assert, default 0.9 (can also be specified using THRESHOLD environment variable)")
+    parser.add_argument(
+        "-r", "--repeat", action=EnvDefault, envvar='REPEAT', type=int, default=1,
+        help="Specify the times it would repeat sequentially, default 1 times (can also be specified using REPEAT environment variable)")
 
     args = parser.parse_args()
 
@@ -163,42 +167,47 @@ def main():
     # use null device as conference bridge, instead of local sound card
     pj.Endpoint.instance().audDevManager().setNullDev()
 
-    call = Call(acc)
-    prm = pj.CallOpParam(True)
-    prm.opt.audioCount = 1
-    prm.opt.videoCount = 0
-    call.makeCall(args.callURI, prm)
+    for i in range(args.repeat):
+        call = Call(acc)
+        prm = pj.CallOpParam(True)
+        prm.opt.audioCount = 1
+        prm.opt.videoCount = 0
+        call.makeCall(args.callURI, prm)
 
-    # hangup all call after 40 sec
-    sleep4PJSUA2(args.callTime)
-    sleep4PJSUA2(1)
-    parser = PjsuaLogParser(call.getInfo().callIdString)
-    dumps = parser.parseIndent(call.dump(True, "    "))
-    # print(dumps)
-    print(call.dump(True, "    "))
-    stats = parser.toJSON()
+        # hangup all call after 40 sec
+        sleep4PJSUA2(args.callTime)
+        parser = PjsuaLogParser(call.getInfo().callIdString)
+        parser.parseIndent(call.dump(True, "    "))
+        stats = parser.toJSON()
 
-    # flag the abnormal data
-    is_abnormal = False
-    min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
-        stats["media"]["0"]["tx"]["total_packet_cnt"]))
-    max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
-        stats["media"]["0"]["tx"]["total_packet_cnt"]))
+        # flag the abnormal data
+        is_abnormal = False
+        min_pktsz = ""
+        max_pktsz = ""
+        # print(stats)
+        min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+            stats["media"]["0"]["tx"]["total_packet_cnt"]))
+        max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+            stats["media"]["0"]["tx"]["total_packet_cnt"]))
 
-    if min_pktsz / max_pktsz < args.threshold:
-        is_abnormal = True
+        if min_pktsz == 0:
+            is_abnormal = True
+        elif min_pktsz / max_pktsz < args.threshold:
+            is_abnormal = True
 
-    with open('client.log', "a") as f:
-        log_str = ""
-        if is_abnormal:
-            log_str = "Error callid:{} min_pktsz:{} max_pktsz:{}\n".format(stats["call_id"], min_pktsz, max_pktsz)
-        else:
-            log_str = "Normal callid:{} min_pktsz:{} max_pktsz:{}\n".format(stats["call_id"], min_pktsz, max_pktsz)
-        print(log_str)
-        f.write(log_str)
+        with open('client.log', "a") as f:
+            log_str = ""
+            if is_abnormal:
+                log_str = "{} Error callid:{} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
+                    datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
+            else:
+                log_str = "{} Normal callid:{} tx_pktsz:{} rx_pktsz:{}\n".format(
+                    datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
+            print(log_str)
+            f.write(log_str)
 
+        del call
     print("*** PJSUA2 SHUTTING DOWN ***")
-    del call
     del acc
 
     # except Exception as e:
