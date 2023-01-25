@@ -1,0 +1,13 @@
+diff --color -rNaur old-pjproject/pjsip-apps/src/swig/Makefile new-pjproject/pjsip-apps/src/swig/Makefile
+--- old-pjproject/pjsip-apps/src/swig/Makefile	2023-01-25 14:26:15.657062828 +0800
++++ new-pjproject/pjsip-apps/src/swig/Makefile	2023-01-25 15:00:59.089893521 +0800
+@@ -11,6 +11,9 @@
+     endif
+ endif
+ 
++# only install python
++LANG = python
++
+ CMD_is_java := $(findstring java, $(MAKECMDGOALS))
+ CMD_is_python := $(findstring python, $(MAKECMDGOALS))
+ CMD_is_csharp := $(findstring csharp, $(MAKECMDGOALS))

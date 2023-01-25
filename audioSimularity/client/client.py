@@ -174,35 +174,47 @@ def main():
         prm.opt.videoCount = 0
         call.makeCall(args.callURI, prm)
 
+        call_id = call.getInfo().callIdString
         # hangup all call after 40 sec
         sleep4PJSUA2(args.callTime)
-        parser = PjsuaLogParser(call.getInfo().callIdString)
+        parser = PjsuaLogParser(call_id)
         parser.parseIndent(call.dump(True, "    "))
         stats = parser.toJSON()
+        # wait for generate dump data
+        sleep4PJSUA2(1)
+        ep.hangupAllCalls()
 
         # flag the abnormal data
         is_abnormal = False
         min_pktsz = ""
         max_pktsz = ""
-        # print(stats)
-        min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
-            stats["media"]["0"]["tx"]["total_packet_cnt"]))
-        max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
-            stats["media"]["0"]["tx"]["total_packet_cnt"]))
+        log_str = ""
 
-        if min_pktsz == 0:
-            is_abnormal = True
-        elif min_pktsz / max_pktsz < args.threshold:
-            is_abnormal = True
+        if len(list(enumerate(stats["media"]))) != 0:
+            try:
+                min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+                    stats["media"]["0"]["tx"]["total_packet_cnt"]))
+                max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+                    stats["media"]["0"]["tx"]["total_packet_cnt"]))
+            except Exception as e:
+                print("err: {}, stats: {}".format(e.args, stats))
+
+
+            if min_pktsz == 0:
+                is_abnormal = True
+            elif min_pktsz / max_pktsz < args.threshold:
+                is_abnormal = True
+        else:
+            log_str = "{} Error(no media) callid:{}\n".format(datetime.now(), stats["call_id"])
 
         with open('client.log', "a") as f:
-            log_str = ""
-            if is_abnormal:
-                log_str = "{} Error callid:{} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
-                    datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
-            else:
-                log_str = "{} Normal callid:{} tx_pktsz:{} rx_pktsz:{}\n".format(
-                    datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
+            if len(log_str) == 0:
+                if is_abnormal:
+                    log_str = "{} Error callid:{} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
+                        datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
+                else:
+                    log_str = "{} Normal callid:{} tx_pktsz:{} rx_pktsz:{}\n".format(
+                        datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
             print(log_str)
             f.write(log_str)
 

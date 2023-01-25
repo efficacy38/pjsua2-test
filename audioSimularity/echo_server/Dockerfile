@@ -13,5 +13,5 @@ RUN apt-get update && \
     cd pjsip-apps/src/swig/ && \
     make python && make install && \
     rm -rf /tmp/pjproject
-COPY ./client.py ./envDefault.py ./input.16.wav ./parseLog.py ./utils.py /
-ENTRYPOINT ["python3", "client.py"] 
+COPY ./echo_server.py ./envDefault.py ./parseLog.py ./utils.py /
+ENTRYPOINT ["python3", "echo_server.py"] 
