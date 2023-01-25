@@ -18,4 +18,4 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag ghcr.io/efficacy38/pj-base:$(date +%s)
+      run: docker build ./pjsua2-container --file Dockerfile --tag ghcr.io/efficacy38/pj-base:$(date +%s)
