@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: none #[ "main" ]
+    branches: [ "main" ] # none
   pull_request:
     branches: none #[ "main" ]
   
