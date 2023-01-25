@@ -43,11 +43,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-            
-      - name: Build and push Docker image
+      - name: Build and push app base image
         uses: docker/build-push-action@v2
         with:
           context: ./pjsua2-container
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+          cache-to: type=inline
+
+      - name: Build and push app client image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./audioSimularity/client
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+          cache-to: type=inline
+
+      - name: Build and push app server image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./audioSimularity/echo_server
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
