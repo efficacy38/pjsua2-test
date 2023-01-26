@@ -3,7 +3,9 @@ from utils import sleep4PJSUA2
 from parseLog import PjsuaLogParser
 import argparse
 from envDefault import EnvDefault
+import humanfriendly
 import re
+from datetime import datetime
 
 
 class Call(pj.Call):
@@ -26,9 +28,6 @@ class Call(pj.Call):
 
         # python do not do the gc of underlaying C++ library, we need to do it by ourself
         if ci.stateText == "DISCONNCTD":
-            # parser = PjsuaLogParser()
-            # parser.parseIndent(self.dump(True, "    "))
-            # print(parser.toJSON())
             self.acc.removeCall(self)
             del self
 
@@ -53,6 +52,46 @@ class Call(pj.Call):
             aud_med.startTransmit(aud_med)
         except Exception as e:
             print("exception!!: {}".format(e.args))
+
+    def onStreamDestroyed(self, prm):
+        call_id = self.getInfo().callIdString
+        parser = PjsuaLogParser(call_id)
+        parser.parseIndent(self.dump(True, "    "))
+        stats = parser.toJSON()
+
+        # flag the abnormal data
+        is_abnormal = False
+        min_pktsz = ""
+        max_pktsz = ""
+        log_str = ""
+
+        if len(list(enumerate(stats["media"]))) != 0:
+            try:
+                min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+                    stats["media"]["0"]["tx"]["total_packet_cnt"]))
+                max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
+                    stats["media"]["0"]["tx"]["total_packet_cnt"]))
+            except Exception as e:
+                print("err: {}, stats: {}".format(e.args, stats))
+
+            if min_pktsz == 0:
+                is_abnormal = True
+            elif int(min_pktsz) / int(max_pktsz) < args.threshold:
+                is_abnormal = True
+        else:
+            log_str = "{} Error(no media) callid:{}\n".format(
+                datetime.now(), stats["call_id"])
+
+        with open('server.log', "a") as f:
+            if len(log_str) == 0:
+                if is_abnormal:
+                    log_str = "{} Error callid:{} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
+                        datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
+                else:
+                    log_str = "{} Normal callid:{} tx_pktsz:{} rx_pktsz:{}\n".format(
+                        datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
+            print(log_str)
+            f.write(log_str)
 
 
 class Account(pj.Account):
@@ -94,6 +133,7 @@ def enumLocalMedia(ep):
 
 def main():
     # parse the cmd element
+    global args
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-u", "--username", action=EnvDefault, envvar='USERNAME',
@@ -104,6 +144,12 @@ def main():
     parser.add_argument(
         "-R", "--registrarURI", action=EnvDefault, envvar='REGISTER_URI',
         help="Specify the registrarURI, example: `-R sip:kamailio` (can also be specified using REGISTER_URI environment variable)")
+    parser.add_argument(
+        "-s", "--threshold", action=EnvDefault, envvar='THRESHOLD', type=float, default=0.9, required=False,
+        help="Specify the abnormal percent it would assert, default 0.9 (can also be specified using THRESHOLD environment variable)")
+    parser.add_argument(
+        "-D", "--debug", action=EnvDefault, envvar='DBG', type=float, default=False, required=False,
+        help="Specify whether the debug mode is open, default False (can also be specified using DBG environment variable)")
 
     args = parser.parse_args()
 
@@ -113,8 +159,9 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
-        ep_cfg.logConfig.level = 1
-        ep_cfg.logConfig.consoleLevel = 1
+        if not args.debug:
+            ep_cfg.logConfig.level = 1
+            ep_cfg.logConfig.consoleLevel = 1
 
         # disable the echo cancelation
         # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
@@ -128,7 +175,8 @@ def main():
 
         # add account config
         acc_cfg = pj.AccountConfig()
-        acc_cfg.idUri = "sip:{}@{}".format(args.username, re.findall("sip:(.*)", args.registrarURI)[0])
+        acc_cfg.idUri = "sip:{}@{}".format(args.username,
+                                           re.findall("sip:(.*)", args.registrarURI)[0])
         print("*** start sending SIP REGISTER ***")
         acc_cfg.regConfig.registrarUri = args.registrarURI
 
@@ -146,7 +194,7 @@ def main():
         pj.Endpoint.instance().audDevManager().setNullDev()
 
         # hangup all call after 10 sec
-        cnt = sleep4PJSUA2(-1)
+        sleep4PJSUA2(-1)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del acc
