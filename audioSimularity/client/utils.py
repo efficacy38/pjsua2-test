@@ -23,12 +23,11 @@ def sleep4PJSUA2(t):
 
     start = datetime.now()
     end = start
-    if t == -1:
-        while True:
-            end = datetime.now()
-            if (end - start).total_seconds() >= t or isquit:
-                break
-            pj.Endpoint.instance().libHandleEvents(20)
+    while True:
+        end = datetime.now()
+        if ((end - start).total_seconds() >= t and t != -1) or isquit:
+            break
+        pj.Endpoint.instance().libHandleEvents(20)
     return (end - start).total_seconds()
 
 
