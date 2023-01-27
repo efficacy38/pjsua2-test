@@ -1,22 +1,50 @@
 import pjsua2 as pj
 import time
 import gc
+from inspect import currentframe, getframeinfo
+import threading
 # Subclass to extend the Account and get notifications etc.
+
+isQuitting = False
 
 
 class Account(pj.Account):
+    def quit(self):
+        pass
+
     def onRegState(self, prm):
+        global isQuitting
         print("***OnRegState: " + prm.reason)
+        tmp = get_linenumber_and_filename()
+        print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        isQuitting = True
+        raise pj.Error(2, 'Error', 'WHAT', *tmp)
+        # self.quit()
 
 # pjsua2 test function
 
 
+def get_linenumber_and_filename():
+    cf = currentframe()
+    return (getframeinfo(cf).filename, cf.f_back.f_lineno)
+
+
+isQuit = False
+
+
 def pjsua2_register():
+    global ep
     gc.disable()
     # Create and initialize the library
     ep_cfg = pj.EpConfig()
     ep = pj.Endpoint()
     ep.libCreate()
+    ep_cfg.uaConfig.threadCnt = 1
+    ep_cfg.uaConfig.mainThreadOnly = True
+    ep_cfg.logConfig.level = 10
+    ep_cfg.logConfig.consoleLevel = 10
+    # ep_cfg.logConfig.writer = pj.LogWriter
+    ep_cfg.logConfig.filename = "test.log"
     ep.libInit(ep_cfg)
 
     # Create SIP transport. Error handling sample is shown
@@ -63,8 +91,11 @@ def pjsua2_register():
     # please check this issue to handle the sleep usage
     # https://github.com/pjsip/pjproject/issues/2685
     # libHandleEvents, this function will also scan and run any pending jobs in the list.
-    ep.libHandleEvents(10000)
-    time.sleep(10)
+    while True:
+        ep.libHandleEvents(20)
+        if isQuitting:
+            break
+
 
     # Destroy the library
     ep.libDestroy()
