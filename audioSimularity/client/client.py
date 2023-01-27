@@ -63,11 +63,12 @@ class Call(pj.Call):
         #         am.startTransmit(
         #             ep.Endpoint.instance.audDevManager().getPlaybackDevMedia())
         aud_med = None
-        # try:
-        #     # get the "local" media
-        #     aud_med = self.getAudioMedia(-1)
-        # except Exception as e:
-        #     print("exception!!: {}".format(e.args))
+        try:
+            # get the "local" media
+            aud_med = self.getAudioMedia(-1)
+        except pj.Error as e:
+            print("exception!!: {}".format(e.args))
+            handleErr(e)
 
         if not self.wav_player:
             self.wav_player = pj.AudioMediaPlayer()
