@@ -33,11 +33,13 @@ def sleep4PJSUA2(t):
     return (end - start).total_seconds()
 
 
-def handleErr(e: pj.Error):
+def handleErr(e: pj.Error, stopImmed=True):
     """handle the error, it would print pj error and exit the PJSUA
-        arg:
+        Args:
             e: pj.Error
+            stopImmed (Float): whether you wants to stop immediately, default is True
     """
     print("Exception {}\r\n, Traceback:\r\n".format(e.info()))
     traceback.print_exception(*sys.exc_info())
-    quitPJSUA()
+    if stopImmed:
+        quitPJSUA()
