@@ -19,6 +19,10 @@ sudo ./install-pjsua.sh
 
 ### Audio Simularity
 - use client
-    - standar usage `python3 client.py -u 1 -p test -R sip:kamailio -c "sip:2@kamailio" -t 1`
+    - docker package: `docker run -it -v ~/server.log:/server.log --network host  ghcr.io/efficacy38/echo-server -u {YOUR_USERNAME} -p {YOUR_PASSWORD} -R sip:{YOUR_SIP_SERVER_IP}`
+    - standar usage 
+        - `python3 client.py -u 1 -p test -R sip:kamailio -c "sip:2@kamailio" -t 1`
     - get some help `python3 client.py --help`
-
+- use server
+    - docker package: `docker run -it efficacy38/pj-client -u {YOUR_USERNAME} -p {YOUR_PASSWORD} -R sip:{YOUR_SIP_SERVER_IP} -c {CALL_URI} -t {CALL_DURATION} -r {SEQUENTIALLY_REPECT_TIMES}`
+    - get some help `python3 echo_server.py --help`
