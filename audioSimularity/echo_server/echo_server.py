@@ -166,7 +166,7 @@ def main():
             ep_cfg.logConfig.level = 1
             ep_cfg.logConfig.consoleLevel = 1
         # do some logging
-        ep_cfg.logConfig.filename = "server.log"
+        ep_cfg.logConfig.filename = "pjsua2.log"
         # disable the VAD
         ep_cfg.medConfig.noVad = True
 
