@@ -1,5 +1,5 @@
 import pjsua2 as pj
-from utils import sleep4PJSUA2
+from utils import sleep4PJSUA2, handleErr
 
 
 class Call(pj.Call):
@@ -43,17 +43,18 @@ class Call(pj.Call):
         try:
             # get the "local" media
             aud_med = self.getAudioMedia(-1)
-        except Exception as e:
-            print("exception!!: {}".format(e.args))
+        except pj.Error as e:
+            handleErr(e)
 
         if not self.wav_player:
             self.wav_player = pj.AudioMediaPlayer()
             try:
                 self.wav_player.createPlayer("./input.16.wav")
-            except Exception as e:
+            except pj.Error as e:
                 print("Exception!!: failed opening wav file")
                 del self.wav_player
                 self.wav_player = None
+                handleErr(e)
 
         if self.wav_player:
             self.wav_player.startTransmit(aud_med)
@@ -135,8 +136,8 @@ def main():
         print("*** PJSUA2 SHUTTING DOWN ***")
         del acc
 
-    except Exception as e:
-        print("catch exception!!, exception error is: {}".format(e.args))
+    except KeyboardInterrupt as e:
+        print("catch KeyboardInterrupt!!, exception error is: {}".format(e.args))
 
     # close the library
     try:
