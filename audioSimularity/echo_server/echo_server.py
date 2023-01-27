@@ -159,9 +159,16 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
-        if not args.debug:
+        if args.debug:
+            ep_cfg.logConfig.level = 10
+            ep_cfg.logConfig.consoleLevel = 10
+        else:
             ep_cfg.logConfig.level = 1
             ep_cfg.logConfig.consoleLevel = 1
+        # do some logging
+        ep_cfg.logConfig.filename = "server.log"
+        # disable the VAD
+        ep_cfg.medConfig.noVad = True
 
         # disable the echo cancelation
         # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
