@@ -7,7 +7,7 @@ git clone https://github.com/pjsip/pjproject.git
 cd pjproject
 export CFLAGS="$CFLAGS -fPIC"
 ./configure --enable-shared
-make dep && make & sudo make install && sudo ldconfig
+make dep && make && sudo make install && sudo ldconfig
 
 # install pjsua2 python3 wrapper
 cd pjsip-apps/src/swig/

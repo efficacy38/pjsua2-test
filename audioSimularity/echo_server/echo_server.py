@@ -67,16 +67,16 @@ class Call(pj.Call):
 
         if len(list(enumerate(stats["media"]))) != 0:
             try:
-                min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
-                    stats["media"]["0"]["tx"]["total_packet_cnt"]))
-                max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_cnt"]), humanfriendly.parse_size(
-                    stats["media"]["0"]["tx"]["total_packet_cnt"]))
+                min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_size"]), humanfriendly.parse_size(
+                    stats["media"]["0"]["tx"]["total_packet_size"]))
+                max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_size"]), humanfriendly.parse_size(
+                    stats["media"]["0"]["tx"]["total_packet_size"]))
             except Exception as e:
                 print("err: {}, stats: {}".format(e.args, stats))
 
             if min_pktsz == 0:
                 is_abnormal = True
-            elif int(min_pktsz) / int(max_pktsz) < args.threshold:
+            elif float(min_pktsz) / float(max_pktsz) < args.threshold and float(max_pktsz) - float(min_pktsz) > 10240:  # larger than 10k
                 is_abnormal = True
         else:
             log_str = "{} Error(no media) callid:{}\n".format(
@@ -85,11 +85,11 @@ class Call(pj.Call):
         with open('server.log', "a") as f:
             if len(log_str) == 0:
                 if is_abnormal:
-                    log_str = "{} Error callid:{} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
-                        datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
+                    log_str = "{} Error callid:{} call_time: {} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
+                        datetime.now(), stats["call_id"], stats["call_time"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
                 else:
-                    log_str = "{} Normal callid:{} tx_pktsz:{} rx_pktsz:{}\n".format(
-                        datetime.now(), stats["call_id"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
+                    log_str = "{} Normal callid:{} call_time: {} tx_pktsz:{} rx_pktsz:{}\n".format(
+                        datetime.now(), stats["call_id"], stats["call_time"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
             print(log_str)
             f.write(log_str)
 
