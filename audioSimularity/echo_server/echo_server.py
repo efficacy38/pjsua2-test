@@ -170,9 +170,6 @@ def main():
         # disable the VAD
         ep_cfg.medConfig.noVad = True
 
-        # set the maximum call
-        ep_cfg.uaConfig.maxCalls = 32
-
         # disable the echo cancelation
         # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
 
