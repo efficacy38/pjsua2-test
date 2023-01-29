@@ -14,7 +14,7 @@ env:
   IMAGE_NAME: efficacy38/pj-client # ${{ github.repository }}
 
 jobs:
-  build-and-push-image:
+  build-and-push-client-image:
     runs-on: ubuntu-latest
     # permissions:
       # contents: read

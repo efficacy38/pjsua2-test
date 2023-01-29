@@ -14,7 +14,7 @@ env:
   IMAGE_NAME: efficacy38/pj-base # ${{ github.repository }}
 
 jobs:
-  build-and-push-image:
+  build-and-base-push-image:
     runs-on: ubuntu-latest
     # permissions:
       # contents: read
