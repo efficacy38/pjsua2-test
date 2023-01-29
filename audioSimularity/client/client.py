@@ -140,6 +140,9 @@ def main():
         if not DBG:
             ep_cfg.logConfig.level = 1
             ep_cfg.logConfig.consoleLevel = 1
+        # using thread in python may cause some problem
+        ep_cfg.uaConfig.threadCnt = 0
+        ep_cfg.uaConfig.mainThreadOnly = True
         ep.libInit(ep_cfg)
 
         # add some config

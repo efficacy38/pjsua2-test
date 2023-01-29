@@ -4,7 +4,7 @@ CC = g++
 all: myapp
 
 %.o: %.cpp
-	$(CC) -o $@ $< `pkg-config --cflags --libs libpjproject`
+	$(CC) -o $@ -ggdb $< `pkg-config --cflags --libs libpjproject`
 	chmod +x $@
 	
 clean:

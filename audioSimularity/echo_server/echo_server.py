@@ -6,13 +6,14 @@ from envDefault import EnvDefault
 import humanfriendly
 import re
 from datetime import datetime
+import traceback
+import sys
 
 
 class Call(pj.Call):
     """
     Call class, High level Python Call object, derived from pjsua2's Call object.
-    there are Call class reference: https://www.pjsip.org/pjsip/docs/html/classpj_1_1Call.htm
-    We may wants to implement our Call object to handle the "outgoing" call implement logic
+    there are Call class reference: https://www.pjsip.org/pjsip/docs/html/classpj_1_1Call.htm We may wants to implement our Call object to handle the "outgoing" call implement logic
     """
 
     def __init__(self, acc, peer_uri='', chat=None, call_id=pj.PJSUA_INVALID_ID):
@@ -159,6 +160,10 @@ def main():
         ep = pj.Endpoint()
         ep.libCreate()
         ep_cfg = pj.EpConfig()
+
+        # using thread in python may cause some problem
+        ep_cfg.uaConfig.threadCnt = 0
+        ep_cfg.uaConfig.mainThreadOnly = True
         if args.debug:
             ep_cfg.logConfig.level = 10
             ep_cfg.logConfig.consoleLevel = 10
@@ -214,6 +219,7 @@ def main():
         ep.libDestroy()
     except Exception as e:
         print("catch exception!!, exception error is: {}".format(e.args))
+        traceback.print_exception(*sys.exc_info())
 
 
 if __name__ == '__main__':

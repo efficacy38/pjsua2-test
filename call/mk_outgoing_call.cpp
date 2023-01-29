@@ -169,7 +169,7 @@ extern "C" int main() {
 
     // Create transport
     TransportConfig tcfg;
-    tcfg.port = 5060;
+    // tcfg.port = 5060;
     ep.transportCreate(PJSIP_TRANSPORT_UDP, tcfg);
 
     // Add account
@@ -192,18 +192,21 @@ extern "C" int main() {
 
     // use null device as bridge
     Endpoint::instance().audDevManager().setNullDev();
-    // Make outgoing call
-    Call *call = new MyCall(*acc);
-    // acc->calls.push_back(call);
-    CallOpParam prm(true);
-    prm.opt.audioCount = 1;
-    prm.opt.videoCount = 0;
-    call->makeCall("sip:1@kamailio", prm);
+    while(true) {
+        // Make outgoing call
+        Call *call = new MyCall(*acc);
+        // acc->calls.push_back(call);
+        CallOpParam prm(true);
+        prm.opt.audioCount = 1;
+        prm.opt.videoCount = 0;
+        call->makeCall("sip:1@kamailio", prm);
 
-    // Hangup all calls after 10 sec
-    pj_thread_sleep(10000);
-    ep.hangupAllCalls();
-    pj_thread_sleep(4000);
+        // Hangup all calls after 10 sec
+        pj_thread_sleep(1000);
+        ep.hangupAllCalls();
+        // pj_thread_sleep(4000);
+        delete call;
+    }
 
     // Destroy library
     std::cout << "*** PJSUA2 SHUTTING DOWN ***" << std::endl;

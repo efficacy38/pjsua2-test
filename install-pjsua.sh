@@ -5,7 +5,7 @@ sudo apt-get install -y gcc g++ build-essential swig python3-dev default-jdk pyt
 # compile the pjsip binary
 git clone https://github.com/pjsip/pjproject.git
 cd pjproject
-export CFLAGS="$CFLAGS -fPIC"
+export CFLAGS="$CFLAGS -fPIC -ggdb"
 ./configure --enable-shared
 make dep && make && sudo make install && sudo ldconfig
 
