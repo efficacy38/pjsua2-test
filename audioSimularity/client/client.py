@@ -79,20 +79,21 @@ class Call(pj.Call):
                 del self.wav_player
                 self.wav_player = None
                 handleErr(e)
+            else:
+                self.wav_player.startTransmit(aud_med)
 
-        if not self.wav_recorder:
-            self.wav_recorder = pj.AudioMediaRecorder()
-            try:
-                self.wav_recorder.createRecorder("./recordered.wav")
-            except pj.Error as e:
-                print("Exception!!: failed opening recordered wav file")
-                del self.wav_recorder
-                self.wav_recorder = None
-                handleErr(e)
-
-        if self.wav_player and self.wav_recorder:
-            self.wav_player.startTransmit(aud_med)
-            aud_med.startTransmit(self.wav_recorder)
+        if args.record:
+            if not self.wav_recorder:
+                self.wav_recorder = pj.AudioMediaRecorder()
+                try:
+                    self.wav_recorder.createRecorder("./recordered.wav")
+                except pj.Error as e:
+                    print("Exception!!: failed opening recordered wav file")
+                    del self.wav_recorder
+                    self.wav_recorder = None
+                    handleErr(e)
+                else:
+                    aud_med.startTransmit(self.wav_recorder)
 
 
 def enumLocalMedia(ep):
@@ -107,6 +108,7 @@ def enumLocalMedia(ep):
 
 
 def main():
+    global args
 
     # parse the cmd element
     parser = argparse.ArgumentParser()
@@ -128,6 +130,9 @@ def main():
     parser.add_argument(
         "-r", "--repeat", action=EnvDefault, envvar='REPEAT', type=int, default=1,
         help="Specify the times it would repeat sequentially, default 1 times (can also be specified using REPEAT environment variable)")
+    parser.add_argument(
+        "-x", "--record", action=EnvDefault, envvar='RECORD', type=bool, default=False, required=False,
+        help="Specify the whether it would record the audio to /recordered.wav, default False (can also be specified using RECORD environment variable)")
 
     args = parser.parse_args()
 
@@ -180,7 +185,6 @@ def main():
             # hangup all call after the time we specified at args(sec)
             sleep4PJSUA2(args.callTime)
             ep.hangupAllCalls()
-
 
             del call
         print("*** PJSUA2 SHUTTING DOWN ***")
