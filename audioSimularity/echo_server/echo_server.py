@@ -86,11 +86,12 @@ class Call(pj.Call):
         with open('server.log', "a") as f:
             if len(log_str) == 0:
                 if is_abnormal:
-                    log_str = "{} Error callid:{} call_time: {} tx_pktsz:{} rx_pktsz:{} dbg_msg={}\n".format(
-                        datetime.now(), stats["call_id"], stats["call_time"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"], stats)
-                else:
-                    log_str = "{} Normal callid:{} call_time: {} tx_pktsz:{} rx_pktsz:{}\n".format(
-                        datetime.now(), stats["call_id"], stats["call_time"], stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"])
+                    log_str = log_str + "dbg_msg: {}".format(stats)
+                log_str = "{} {status} callid:{} call_time:{} codec:{} tx:{} rx: {} ".format(
+                    datetime.now(
+                    ), stats["call_id"], stats["call_time"], stats["media"]["0"]["codec"],
+                    stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"],
+                    status=("Error" if is_abnormal else "Normal"))
             print(log_str)
             f.write(log_str)
 
@@ -149,7 +150,7 @@ def main():
         "-s", "--threshold", action=EnvDefault, envvar='THRESHOLD', type=float, default=0.9, required=False,
         help="Specify the abnormal percent it would assert, default 0.9 (can also be specified using THRESHOLD environment variable)")
     parser.add_argument(
-        "-D", "--debug", action=EnvDefault, envvar='DBG', type=float, default=False, required=False,
+        "-D", "--debug", action=EnvDefault, envvar='DBG', type=bool, default=False, required=False,
         help="Specify whether the debug mode is open, default False (can also be specified using DBG environment variable)")
 
     args = parser.parse_args()
@@ -205,7 +206,16 @@ def main():
         # use null device as conference bridge, instead of local sound card
         pj.Endpoint.instance().audDevManager().setNullDev()
 
-        # hangup all call after 10 sec
+        # disable speex codec
+        ep.codecSetPriority("speex", 0)
+
+        # enumerate current supported codec
+        print("*** supported codec(priority 0 means disable) ***")
+        for codec in ep.codecEnum2():
+            print("codec_id: {} codec_priority: {}".format(
+                codec.codecId, codec.priority))
+
+        # sleep forever
         sleep4PJSUA2(-1)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
