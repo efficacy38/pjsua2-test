@@ -8,6 +8,14 @@ import re
 from datetime import datetime
 import traceback
 import sys
+from typing import Union
+import io
+
+# pjsua2 endpoint instance
+ep: Union[None, pj.Endpoint] = None
+
+# log file descriptor
+f: Union[None, io.TextIOWrapper] = None
 
 
 class Call(pj.Call):
@@ -16,7 +24,7 @@ class Call(pj.Call):
     there are Call class reference: https://www.pjsip.org/pjsip/docs/html/classpj_1_1Call.htm We may wants to implement our Call object to handle the "outgoing" call implement logic
     """
 
-    def __init__(self, acc, peer_uri='', chat=None, call_id=pj.PJSUA_INVALID_ID):
+    def __init__(self, acc, call_id=pj.PJSUA_INVALID_ID):
         pj.Call.__init__(self, acc, call_id)
         self.acc = acc
 
@@ -55,7 +63,9 @@ class Call(pj.Call):
             print("exception!!: {}".format(e.args))
 
     def onStreamDestroyed(self, prm):
-        call_id = self.getInfo().callIdString
+        global f
+        ci = self.getInfo()
+        call_id = ci.callIdString
         parser = PjsuaLogParser(call_id)
         parser.parseIndent(self.dump(True, "    "))
         stats = parser.toJSON()
@@ -83,17 +93,17 @@ class Call(pj.Call):
             log_str = "{} Error(no media) callid:{}\n".format(
                 datetime.now(), stats["call_id"])
 
-        with open('server.log', "a") as f:
-            if len(log_str) == 0:
-                if is_abnormal:
-                    log_str = log_str + "dbg_msg: {}".format(stats)
-                log_str = "{} {status} callid:{} call_time:{} codec:{} tx:{} rx: {} ".format(
-                    datetime.now(
-                    ), stats["call_id"], stats["call_time"], stats["media"]["0"]["codec"],
-                    stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"],
-                    status=("Error" if is_abnormal else "Normal"))
-            print(log_str)
-            f.write(log_str)
+        if len(log_str) == 0:
+            log_str = "{} {status} callid:{} caller:{} call_time:{} codec:{} tx:{} rx:{} ".format(
+                datetime.now(
+                ), stats["call_id"], ci.remoteUri, stats["call_time"], stats["media"]["0"]["codec"],
+                stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"],
+                status=("Error" if is_abnormal else "Normal"))
+            if is_abnormal:
+                log_str = log_str + "dbg_msg: {}".format(stats)
+            log_str += '\n'
+        print(log_str)
+        f.write(log_str)
 
 
 class Account(pj.Account):
@@ -155,7 +165,13 @@ def main():
 
     args = parser.parse_args()
 
-    ep = None
+    global ep, f
+
+    try:
+        f = open('server.log', "a", buffering=1)
+    except Exception as e:
+        print("can't open the log file")
+
     try:
         # init the lib
         ep = pj.Endpoint()
@@ -223,13 +239,15 @@ def main():
 
     except Exception as e:
         print("catch exception!!, exception error is: {}".format(e.args))
-
-    # close the library
-    try:
-        ep.libDestroy()
-    except Exception as e:
-        print("catch exception!!, exception error is: {}".format(e.args))
-        traceback.print_exception(*sys.exc_info())
+    finally:
+        # close the library
+        try:
+            ep.libDestroy()
+        except Exception as e:
+            print("catch exception!!, exception error is: {}".format(e.args))
+            traceback.print_exception(*sys.exc_info())
+            # close the log file descriptor
+            f.close()
 
 
 if __name__ == '__main__':
