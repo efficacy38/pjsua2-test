@@ -104,6 +104,7 @@ class Call(pj.Call):
             log_str += '\n'
         print(log_str)
         f.write(log_str)
+        f.flush()
 
 
 class Account(pj.Account):
