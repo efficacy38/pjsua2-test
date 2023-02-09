@@ -103,8 +103,9 @@ class Call(pj.Call):
                 log_str = log_str + "dbg_msg: {}".format(stats)
             log_str += '\n'
         print(log_str)
+        # reopen the original fd, to make open fd is still alive
+        f = open('server.log', "a", buffering=1)
         f.write(log_str)
-        f.flush()
 
 
 class Account(pj.Account):
