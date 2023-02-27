@@ -1,13 +1,15 @@
-from envDefault import EnvDefault
 import argparse
 import pjsua2 as pj
 import re
 import sys
-sys.path.append("../../")
-from utils import sleep4PJSUA2, handleErr, quitPJSUA
+from enum import Enum
+from signal import signal, SIGINT, SIGTERM
+from envDefault import EnvDefault
 import threading
 import queue
 
+sys.path.append("../../")
+from utils import sleep4PJSUA2, handleErr, quitPJSUA
 
 DBG = 1
 
@@ -30,6 +32,13 @@ class Unbuffered(object):
 
 sys.stdout = Unbuffered(sys.stdout)
 
+class Instruction(Enum):
+    TB_REQUEST='request'
+    TB_GRANT='grant'
+    TB_DENY='deny'
+    TB_RELEASE='release'
+    TB_TAKEN='taken'
+    TB_IDLE='idle'
 
 class Call(pj.Call):
     """
@@ -43,6 +52,7 @@ class Call(pj.Call):
         self.acc = acc
         self.wav_player = None
         self.wav_recorder = None
+        self.curStatus = None
 
     # override the function at original parent class
     # parent class's function can be called by super().onCallState()
@@ -87,20 +97,18 @@ class Call(pj.Call):
                 else:
                     aud_med.startTransmit(self.wav_recorder)
 
+def handler(signal_received, frame):
+    # Handle any cleanup here
+    print('SIGTERM, SIGINT or CTRL-C detected. Exiting gracefully')
+    # quitPJSUA()
 
-def enumLocalMedia(ep):
-    # important: the Endpoint::mediaEnumPorts2() and Call::getAudioMedia() only create a copy of device object
-    # all memory should manage by developer
-    print("enum the local media, and length is ".format(len(ep.mediaEnumPorts2())))
-    for med in ep.mediaEnumPorts2():
-        # media info ref: https://www.pjsip.org/pjsip/docs/html/structpj_1_1MediaFormatAudio.htm
-        med_info = med.getPortInfo()
-        print("id: {}, name: {}, format(channelCount): {}".format(
-            med_info.portId, med_info.name, med_info.format.channelCount))
-
+    exit(0)
 
 def main():
     global args
+
+    signal(SIGTERM, handler)
+    signal(SIGINT, handler)
 
     # parse the cmd element
     parser = argparse.ArgumentParser()
@@ -180,39 +188,50 @@ def main():
                 s = input()
                 inputQueue.put(s)
                 print("****** push s")
-        threading.Thread(target=scanKeyboardPress).start()
+
+        inputThread = threading.Thread(target=scanKeyboardPress)
+        # set it as daemon
+        inputThread.setDaemon(True)
+        inputThread.start()
 
         def control_loop():
-            while not inputQueue.empty():
+            isQuit = not call.isActive()
+            while not inputQueue.empty() and not isQuit:
                 # r stand for ptt request
-                instSet = set(["r", "p"])
+                instSet = set(["request", "release", "print"])
                 inst = inputQueue.get()
                 print("****** pop {}".format(inst))
                 if inst in instSet:
-                    if inst == "p":
-                        print("******hello")
-                    elif inst == "r":
+                    if inst == "print":
+                        print()
+                    elif inst == "request":
                         instantMessagePrm = pj.SendInstantMessageParam()
-                        instantMessagePrm.content = "request"
+                        instantMessagePrm.content = Instruction.TB_REQUEST.value
                         instantMessagePrm.contentType = "text/plain"
                         buddy.sendInstantMessage(instantMessagePrm)
+                    elif inst == "release":
+                        instantMessagePrm = pj.SendInstantMessageParam()
+                        instantMessagePrm.content = Instruction.TB_RELEASE.value
+                        instantMessagePrm.contentType = "text/plain"
+                        buddy.sendInstantMessage(instantMessagePrm)
+            return isQuit
+
+
         # hangup all call after the time we specified at args(sec)
         sleep4PJSUA2(-1, control_loop, 0.5)
+
+
+    except KeyboardInterrupt as e:
+        print("catch KeyboardInterrupt!!, exception error is: {}".format(e.args))
+    finally:
         ep.hangupAllCalls()
 
         del call
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del acc
-
-    except KeyboardInterrupt as e:
-        print("catch KeyboardInterrupt!!, exception error is: {}".format(e.args))
-
-    # close the library
-    try:
+        # close the library
         ep.libDestroy()
-    except pj.Error as e:
-        print("catch exception!!, exception error is: {}".format(e.info()))
 
 
 if __name__ == '__main__':

@@ -1,26 +1,29 @@
 import pjsua2 as pj
-from parseLog import PjsuaLogParser
 import argparse
 from envDefault import EnvDefault
-import humanfriendly
 import re
-from datetime import datetime
 import traceback
 import sys
 from typing import Union
-import io
 import threading
 import queue
+from enum import Enum
+import sys
+from signal import signal, SIGINT, SIGTERM
 
 sys.path.append("../../")
-from utils import sleep4PJSUA2
+from utils import sleep4PJSUA2, quitPJSUA
 
 # pjsua2 endpoint instance
 ep: Union[None, pj.Endpoint] = None
 
-# log file descriptor
-f: Union[None, io.TextIOWrapper] = None
-
+class Instruction(Enum):
+    TB_REQUEST='request'
+    TB_GRANT='grant'
+    TB_DENY='deny'
+    TB_RELEASE='release'
+    TB_TAKEN='taken'
+    TB_IDLE='idle'
 
 class Call(pj.Call):
     """
@@ -49,71 +52,67 @@ class Call(pj.Call):
             self.sendRequest(call_send_request_prm)
 
         # python do not do the gc of underlaying C++ library, we need to do it by ourself
-        if ci.stateText == "DISCONNCTD":
+        elif ci.stateText == "DISCONNECTED":
             self.acc.removeCall(self)
             del self
 
     def onCallMediaState(self, prm):
-        if self.acc.curLeader:
-            try:
-                # get the "local" media
-                aud_med = self.getAudioMedia(-1)
-                # generate echo
-                self.acc.curLeader.getAudioMedia(-1).startTransmit(aud_med)
-            except Exception as e:
-                print("exception!!: {}".format(e.args))
+        if not self.acc.curLeader:
+            return
+
+        try:
+            # get the "local" media
+            aud_med = self.getAudioMedia(-1)
+            # generate echo
+            self.acc.curLeader.getAudioMedia(-1).startTransmit(aud_med)
+        except Exception as e:
+            print("exception!!: {}".format(e.args))
 
     def onStreamDestroyed(self, prm):
-        global f
-        ci = self.getInfo()
-        call_id = ci.callIdString
-        parser = PjsuaLogParser(call_id)
-        parser.parseIndent(self.dump(True, "    "))
-        stats = parser.toJSON()
-
-        # flag the abnormal data
-        is_abnormal = False
-        min_pktsz = ""
-        max_pktsz = ""
-        log_str = ""
-
-        if len(list(enumerate(stats["media"]))) != 0:
-            try:
-                min_pktsz = min(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_size"]), humanfriendly.parse_size(
-                    stats["media"]["0"]["tx"]["total_packet_size"]))
-                max_pktsz = max(humanfriendly.parse_size(stats["media"]["0"]["rx"]["total_packet_size"]), humanfriendly.parse_size(
-                    stats["media"]["0"]["tx"]["total_packet_size"]))
-            except Exception as e:
-                print("err: {}, stats: {}".format(e.args, stats))
-
-            if min_pktsz == 0:
-                is_abnormal = True
-            elif float(min_pktsz) / float(max_pktsz) < args.threshold and float(max_pktsz) - float(min_pktsz) > 10240:  # larger than 10k
-                is_abnormal = True
-        else:
-            log_str = "{} Error(no media) callid:{}\n".format(
-                datetime.now(), stats["call_id"])
-
-        if len(log_str) == 0:
-            log_str = "{} {status} callid:{} caller:{} call_time:{} codec:{} tx:{} rx:{} ".format(
-                datetime.now(
-                ), stats["call_id"], ci.remoteUri, stats["call_time"], stats["media"]["0"]["codec"],
-                stats["media"]["0"]["tx"]["total_packet_size"], stats["media"]["0"]["rx"]["total_packet_size"],
-                status=("Error" if is_abnormal else "Normal"))
-            if is_abnormal:
-                log_str = log_str + "dbg_msg: {}".format(stats)
-            log_str += '\n'
-        print(log_str)
-        # reopen the original fd, to make open fd is still alive
-        f = open('server.log', "a", buffering=1)
-        f.write(log_str)
-
+        # print some summary
+        print(self.dump(with_media=True, indent="  "))
 
 class Account(pj.Account):
     def __init__(self):
         pj.Account.__init__(self)
         self.calls = []
         self.buddys = []
+        self.curLeader = None
+
+    def findCall(self, uri=""):
+        for call in self.calls:
+            ci = call.getInfo()
+            if uri in ci.remoteUri:
+                print(ci.remoteUri)
+                return call
+        return None
+
+    def setLeader(self, uri=""):
+        self.curLeader = self.findCall(uri)
+        if not self.curLeader:
+            print("can't set the ua as a leader")
+            return
+
+        srcMed = self.curLeader.getAudioMedia(-1)
+        for call in self.calls:
+            ci = call.getInfo()
+            if uri not in ci.remoteUri:
+                srcMed.startTransmit(call.getAudioMedia(-1))
+
+    def delLeader(self):
+        if not self.curLeader:
+            print("can't delete the ua")
+            return
+
+        print(self.curLeader)
+        curMed = self.curLeader.getAudioMedia(-1)
+        for call in self.calls:
+            try:
+                if call.isActive():
+                    med = call.getAudioMedia(-1)
+                    curMed.stopTransmit(med)
+            except Exception as e:
+                print("exception!!: {}".format(e.args))
         self.curLeader = None
 
     def onRegState(self, prm):
@@ -133,34 +132,47 @@ class Account(pj.Account):
         print("*** create a buddy")
         curBuddy = None
         # find remote buddy
-        # for buddy in self.buddys:
-        #     if(buddy.getInfo().uri == ci.remoteUri):
-        #         curBuddy = self.findBuddy2(ci.remoteUri)
-        #         print("found buddy")
-        # if not curBuddy:
-        #     buddyCfg = pj.BuddyConfig()
-        #     buddyCfg.uri = ci.remoteUri
-        #     curBuddy = pj.Buddy()
-        #     curBuddy.create(self, buddyCfg)
-        #     self.buddys.append(curBuddy)
-        #     print("not found buddy")
-        # print("send instant message")
-        # instanMessagePrm = pj.SendInstantMessageParam()
-        # instanMessagePrm.content = "test"
-        # instanMessagePrm.contentType = "text/plain"
-        # curBuddy.sendInstantMessage(instanMessagePrm)
-        # print("end send instant message")
+        for buddy in self.buddys:
+            if(buddy.getInfo().uri == ci.remoteUri):
+                curBuddy = self.findBuddy2(ci.remoteUri)
+                print("found buddy")
+        if not curBuddy:
+            buddyCfg = pj.BuddyConfig()
+            buddyCfg.uri = ci.remoteUri
+            curBuddy = pj.Buddy()
+            curBuddy.create(self, buddyCfg)
+            self.buddys.append(curBuddy)
+            print("not found buddy")
 
     def removeCall(self, call):
         for tmpCall in self.calls:
             if tmpCall.getInfo().callIdString == call.getInfo().callIdString:
+                if self.curLeader and self.curLeader.getInfo().callIdString == call.getInfo().callIdString:
+                    print("del")
+                    self.curLeader = None
+
                 self.calls.remove(tmpCall)
                 break
 
     def onInstantMessage(self, prm):
         if prm.contentType == 'text/plain':
-            print("account level -- prm value: {}".format(prm.msgBody))
-        enumLocalMedia()
+            if prm.msgBody == Instruction.TB_REQUEST.value:
+                instantMessagePrm = pj.SendInstantMessageParam()
+                instantMessagePrm.contentType = "text/plain"
+                if self.curLeader:
+                    print("send instant message")
+                    instantMessagePrm.content = Instruction.TB_DENY.value
+                else:
+                    instantMessagePrm.content = Instruction.TB_GRANT.value
+                    self.setLeader(prm.fromUri)
+                self.findBuddy2(prm.fromUri).sendInstantMessage(instantMessagePrm)
+
+            elif prm.msgBody == Instruction.TB_RELEASE.value:
+                    if self.curLeader:
+                        if prm.fromUri in self.curLeader.getInfo().remoteUri:
+                            self.delLeader()
+
+            print("end send instant message")
 
 
 def enumLocalMedia():
@@ -174,8 +186,16 @@ def enumLocalMedia():
         print("id: {}, name: {}, format(channelCount): {}".format(
             med_info.portId, med_info.name, med_info.format.channelCount))
 
+def handler(signal_received, frame):
+    # Handle any cleanup here
+    print('SIGTERM, SIGINT or CTRL-C detected. Exiting gracefully')
+    # quitPJSUA()
+
+    exit(0)
 
 def main():
+    signal(SIGTERM, handler)
+    signal(SIGINT, handler)
     # parse the cmd element
     global args
     parser = argparse.ArgumentParser()
@@ -219,13 +239,6 @@ def main():
         else:
             ep_cfg.logConfig.level = 1
             ep_cfg.logConfig.consoleLevel = 1
-        # do some logging
-        ep_cfg.logConfig.filename = "pjsua2.log"
-        # disable the VAD
-        ep_cfg.medConfig.noVad = True
-
-        # disable the echo cancelation
-        # ep_cfg.medConfig.setEcOptions(pj.PJMEDIA_ECHO_USE_SW_ECHO)
 
         ep.libInit(ep_cfg)
 
@@ -254,23 +267,22 @@ def main():
         # use null device as conference bridge, instead of local sound card
         pj.Endpoint.instance().audDevManager().setNullDev()
 
-        # disable speex codec
-        ep.codecSetPriority("speex", 0)
-
         # enumerate current supported codec
         print("*** supported codec(priority 0 means disable) ***")
         for codec in ep.codecEnum2():
             print("codec_id: {} codec_priority: {}".format(
                 codec.codecId, codec.priority))
 
-
         inputQueue = queue.Queue()
         def scanKeyboardPress():
             while True:
                 s = input()
                 inputQueue.put(s)
-                print("****** push s")
-        threading.Thread(target=scanKeyboardPress).start()
+        # monitor the input
+        inputThread = threading.Thread(target=scanKeyboardPress)
+        # set it as daemon
+        inputThread.setDaemon(True)
+        inputThread.start()
 
         def control_loop():
             while not inputQueue.empty():
@@ -278,49 +290,21 @@ def main():
                 instSet = set(["s", "p", "d"])
                 inst = inputQueue.get()
                 inst = inst.split(' ')
-                # print("****** pop {}".format(inst))
                 opcode, operand = inst[0], inst[1:]
 
                 if opcode in instSet:
                     if opcode == "p":
                         enumLocalMedia()
+                        print(acc.curLeader)
                     elif opcode == "s":
-                        print("set")
-                        src = operand[0]
-                        srcMed = None
-                        for call in acc.calls:
-                            ci = call.getInfo()
-                            if src in ci.remoteUri:
-                                srcMed = call.getAudioMedia(-1)
-                                acc.curLeader = call
-                            else:
-                                srcMed.startTransmit(call.getAudioMedia(-1))
+                        acc.setLeader(operand[0])
                     elif opcode == "d":
-                        curMed = acc.curLeader.getAudioMedia(-1)
-                        for call in acc.calls:
-                            med = call.getAudioMedia(-1)
-                            curMed.stopTransmit(med)
-                        curLeader = None
-
-
-                        # instantMessagePrm = pj.SendInstantMessageParam()
-                        # instantMessagePrm.content = "request"
-                        # instantMessagePrm.contentType = "text/plain"
-                        # buddy.sendInstantMessage(instantMessagePrm)
-        # hangup all call after the time we specified at args(sec)
+                        acc.delLeader()
 
         sleep4PJSUA2(-1, control_loop, 0.5)
+
+        # hangup all call after the time we specified at args(sec)
         ep.hangupAllCalls()
-        # while True:
-        #     end = datetime.now()
-        #     if (end - start).total_seconds() >= 1:
-        #         enumLocalMedia()
-        #         start = datetime.now()
-        #     pj.Endpoint.instance().libHandleEvents(20)
-        #     meds = pj.Endpoint.instance().mediaEnumPorts2()
-        #     if len(meds) > 2 and not isTransmit:
-        #         meds[1].startTransmit(meds[2])
-        sleep4PJSUA2(-1)
 
         print("*** PJSUA2 SHUTTING DOWN ***")
         del acc
@@ -328,10 +312,10 @@ def main():
     except Exception as e:
         print("catch exception!!, exception error is: {}".format(e.args))
         traceback.print_exception(*sys.exc_info())
-        # close the log file descriptor
     finally:
         # close the library
         ep.libDestroy()
+        
 
 
 if __name__ == '__main__':
