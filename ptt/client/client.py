@@ -4,12 +4,12 @@ import re
 import sys
 from enum import Enum
 from signal import signal, SIGINT, SIGTERM
-from envDefault import EnvDefault
 import threading
 import queue
 
 sys.path.append("../../")
-from utils import sleep4PJSUA2, handleErr, quitPJSUA
+from utils.controlLoop import sleep4PJSUA2, quitPJSUA
+from utils.envDefault import EnvDefault
 
 DBG = 1
 
@@ -194,8 +194,10 @@ def main():
         inputThread.setDaemon(True)
         inputThread.start()
 
+        
         def control_loop():
-            isQuit = not call.isActive()
+            # isQuit = not call.isActive()
+            isQuit = False;
             while not inputQueue.empty() and not isQuit:
                 # r stand for ptt request
                 instSet = set(["request", "release", "print"])

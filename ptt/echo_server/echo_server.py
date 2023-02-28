@@ -1,6 +1,5 @@
 import pjsua2 as pj
 import argparse
-from envDefault import EnvDefault
 import re
 import traceback
 import sys
@@ -12,7 +11,8 @@ import sys
 from signal import signal, SIGINT, SIGTERM
 
 sys.path.append("../../")
-from utils import sleep4PJSUA2, quitPJSUA
+from utils.controlLoop import sleep4PJSUA2, quitPJSUA
+from utils.envDefault import EnvDefault
 
 # pjsua2 endpoint instance
 ep: Union[None, pj.Endpoint] = None
@@ -43,13 +43,7 @@ class Call(pj.Call):
               ci.lastStatusCode, ci.stateText))
 
         if ci.stateText == "CONNECTING":
-            call_send_request_prm = pj.CallSendRequestParam()
-            call_send_request_prm.method = "INFO"
-            txo = pj.SipTxOption()
-            txo.contentType = "text/plain"
-            txo.msgBody = "test info"
-            call_send_request_prm.txOption = txo
-            self.sendRequest(call_send_request_prm)
+            pass
 
         # python do not do the gc of underlaying C++ library, we need to do it by ourself
         elif ci.stateText == "DISCONNECTED":
